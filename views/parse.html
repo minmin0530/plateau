@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/106/three.min.js"></script>
+  <script src="../public/OrbitControls.js"></script>
+  <script>
+function checkStatus(res) {
+    if (res.status >= 200 && res.status < 300) {
+      return res
+    } else {
+      const error = new Error(res.statusText);
+      error.response = res;
+      throw error
+    }
+  }
+  
+function parseXML(response) {
+    return response.json().then((stringContainingXMLSource) => {
+        const parser = new DOMParser();
+        const posListArray = [];
+
+        for (let j = 0; j < stringContainingXMLSource.length; j++) {
+        for (let i = 0; i < stringContainingXMLSource[j]['core:CityModel']['core:cityObjectMember'].length; i++) {
+            posListArray.push(stringContainingXMLSource[j]['core:CityModel']['core:cityObjectMember'][i]['bldg:Building'][0]['bldg:lod0RoofEdge'][0]['gml:MultiSurface'][0]['gml:surfaceMember'][0]['gml:Polygon'][0]['gml:exterior'][0]['gml:LinearRing'][0]['gml:posList'][0].split(' '));
+        }
+        }
+
+
+      // 箱を作成
+
+      const size = 1;
+      for (const posList of posListArray) {
+        for (let i = 0; i < posList.length; i += 3) {
+            const geometry = new THREE.BoxGeometry(size, size, size);
+            const material = new THREE.MeshNormalMaterial();
+            const box = new THREE.Mesh(geometry, material);
+            box.position.set(((posList[i + 0] * 100) % 3554) * 1000,posList[i + 2],((posList[i + 1] * 100) % 13971) * 1000);
+            scene.add(box);
+        }
+      }
+
+    });
+}
+
+var scene;
+    // ページの読み込みを待つ
+    window.addEventListener('load', init);
+
+    function init() {
+      // サイズを指定
+      const width = 960;
+      const height = 540;
+
+      // レンダラーを作成
+      const renderer = new THREE.WebGLRenderer({
+        canvas: document.querySelector('#myCanvas')
+      });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(width, height);
+
+      // シーンを作成
+      scene = new THREE.Scene();
+
+      // カメラを作成
+      const zoom = 1.01;
+      const camera = new THREE.PerspectiveCamera(45, width / height, 1, 100000);
+      camera.position.set(1000, 0, 1000);
+    //   camera.position.set(posList[0] * zoom,posList[2] * zoom,posList[1] * zoom);
+    //   camera.lookAt(new THREE.Vector3(posList[0],posList[2],posList[1]));
+      const controls = new THREE.OrbitControls(camera);
+
+        fetch("/apinum").then( (response) => response.json() ).then( (data) => {
+
+            let count = 0;
+            for (const d of data) {
+                let button = document.createElement("button");
+                button.innerHTML = d;
+                button.onclick = () => {
+                    fetch("/api" + d).then(checkStatus)
+                    .then(parseXML)
+                    .catch((error) => {
+                    console.log('request failed', error)
+                    });
+
+                }
+                document.body.appendChild(button);
+                // count++;
+                // if (count > 20) {
+                //     break;
+                // }
+            }
+
+
+        });
+
+        // fetch("/api").then(checkStatus)
+        //     .then(parseXML)
+        //     .catch((error) => {
+        //     console.log('request failed', error)
+        //     });
+        tick();
+
+        // 毎フレーム時に実行されるループイベントです
+        function tick() {
+            //        box.rotation.y += 0.01;
+            renderer.render(scene, camera); // レンダリング
+
+            requestAnimationFrame(tick);
+        }
+
+
+    }
+  </script>
+</head>
+<body>
+  <canvas id="myCanvas"></canvas>
+</body>
+</html>
